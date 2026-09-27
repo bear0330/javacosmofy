@@ -8,9 +8,8 @@ needs no Java installation.
 ## Requirements
 
 Build `../../dist/javacosmofy.com` first. Preparing the application needs
-`curl`, `unzip`, `sha256sum`, and a bootstrap JDK. Point
-`JAVACOSMOFY_JAVAC` at that JDK's `javac` if it is not the sibling
-`../superconfigure` checkout.
+`curl`, `unzip`, `sha256sum`, and a bootstrap JDK. Set
+`JAVACOSMOFY_JAVAC` to that JDK's `javac`.
 
 ## Build
 

@@ -13,13 +13,15 @@ its `java.datatransfer` dependency only to this application. Building needs
 
 ## Build
 
-Run from this directory. Tika 4.x ships a thin launcher and adjacent `lib/`
-directory, so `--classpath` embeds all of its parser dependencies. This is the
-complete packaging command; no launcher script is required.
+Run from this directory. Download the matching `java-modules.zip` from the
+[java-ape releases](https://github.com/bear0330/java-ape/releases). Tika 4.x
+ships a thin launcher and adjacent `lib/` directory, so `--classpath` embeds
+all of its parser dependencies. This is the complete packaging command; no
+launcher script is required.
 
 ```sh
 mkdir -p build
-../../scripts/install-module-repository.sh /path/to/superconfigure/results/libexec/java-modules.zip
+../../scripts/install-module-repository.sh /path/to/java-modules.zip
 curl -fL --retry 3 -o build/tika-app-4.0.0.zip https://dlcdn.apache.org/tika/4.0.0/tika-app-4.0.0.zip
 unzip -q build/tika-app-4.0.0.zip -d build/tika
 ../../dist/javacosmofy.com bundle build/tika/tika-app-4.0.0.jar --jar --classpath build/tika/lib --main org.apache.tika.cli.TikaCLI --modules java.desktop -o build/tika.com

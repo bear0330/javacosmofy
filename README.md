@@ -6,22 +6,27 @@ host `zip`, or Java compiler is needed after the initial bootstrap.
 
 ## Bootstrap
 
-With a superconfigure checkout that has already built `java.com`:
+Download `java.com` and, if needed, `java-modules.zip` from the
+[java-ape releases](https://github.com/bear0330/java-ape/releases). Keep both
+assets from the same release: javacosmofy verifies their embedded build
+fingerprints before adding optional modules.
+
+Bootstrap javacosmofy with `java.com` and any local JDK that provides `javac`:
 
 ```sh
-./scripts/bootstrap.sh /path/to/superconfigure/results/bin/java.com
-JAVACOSMOFY_JAVAC=/path/to/superconfigure/build-tools/openjdk25-boot/bin/javac \
+./scripts/bootstrap.sh /path/to/java.com
+JAVACOSMOFY_JAVAC=/path/to/jdk/bin/javac \
   ./scripts/verify-native.sh
 ```
 
-The bootstrap JDK is only used to compile javacosmofy's source. The resulting
-`dist/javacosmofy.com` runs its own `bundle` command and writes ZIP32 entries
-using Java APIs.
+The JDK is only needed for this initial compilation. The resulting
+`dist/javacosmofy.com` runs its own `bundle` command and needs no host Java
+installation.
 
 ## Example
 
 ```sh
-/path/to/superconfigure/build-tools/openjdk25-boot/bin/javac \
+/path/to/jdk/bin/javac \
   -d .build/hello examples/hello/src/example/Hello.java
 ./dist/javacosmofy.com bundle .build/hello --main example.Hello -o dist/hello.com
 ./dist/hello.com 'two words'
@@ -63,12 +68,12 @@ distribution `lib/` directory, embed both with its CLI main class:
 
 ## Optional JDK modules
 
-`java.com` is intentionally minimal. A matching superconfigure build writes
-`results/libexec/java-modules.zip`, containing all compiled Java modules but
-not embedding them in the runtime. Install that asset beside javacosmofy:
+`java.com` is intentionally minimal. The matching `java-modules.zip` release
+asset contains the remaining compiled Java modules. Install it beside
+javacosmofy when an application needs one:
 
 ```sh
-./scripts/install-module-repository.sh /path/to/results/libexec/java-modules.zip
+./scripts/install-module-repository.sh /path/to/java-modules.zip
 ```
 
 Then add only the modules an application needs. `javacosmofy` reads each

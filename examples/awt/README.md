@@ -6,11 +6,13 @@ only into `awt.com` from javacosmofy's matching module repository.
 
 ## Build
 
-Install the repository, then compile and package from this directory:
+Download `java.com` and the matching `java-modules.zip` from the
+[java-ape releases](https://github.com/bear0330/java-ape/releases). Install
+the module archive, then compile and package from this directory:
 
 ```sh
-../../scripts/install-module-repository.sh /path/to/superconfigure/results/libexec/java-modules.zip
-/path/to/bootstrap-jdk/bin/javac -d build/classes src/example/Window.java
+../../scripts/install-module-repository.sh /path/to/java-modules.zip
+/path/to/jdk/bin/javac -d build/classes src/example/Window.java
 ../../dist/javacosmofy.com bundle build/classes --main example.Window --modules java.desktop -o build/awt.com
 ```
 
