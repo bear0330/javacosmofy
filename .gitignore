@@ -1,0 +1,4 @@
+.build/
+dist/
+examples/**/build/
+modules/*.zip
