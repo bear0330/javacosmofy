@@ -37,6 +37,12 @@ if [ -f "$ROOT/modules/jdk25-cosmo.zip" ]; then
   "$BIN" bundle "$TMP/modules" --main Modules --modules java.desktop --output "$TMP/modules.com"
   [ "$("$TMP/modules.com")" = 'name' ]
   unzip -l "$TMP/modules.com" | grep -q 'modules/java.desktop/module-info.class'
+
+  if unzip -l "$TMP/modules.com" | grep -q 'modules/java.desktop/_the\.'; then
+    echo 'FAIL: module build metadata was bundled' >&2
+    exit 1
+  fi
+
   echo 'PASS: matching optional module repository'
 else
   echo 'SKIP: optional module repository is not installed'

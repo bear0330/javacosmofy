@@ -5,7 +5,7 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 SOURCE=$(CDPATH= cd -- "$(dirname -- "$1")" && pwd)/$(basename -- "$1")
 test -f "$SOURCE" || { echo "missing module repository: $SOURCE" >&2; exit 1; }
-unzip -p "$SOURCE" .__javacosmofy__/module-repository.properties >/dev/null
+unzip -p "$SOURCE" .java-ape/runtime-manifest.json >/dev/null
 mkdir -p "$ROOT/modules"
 cp "$SOURCE" "$ROOT/modules/jdk25-cosmo.zip"
 printf 'Installed module repository: %s\n' "$ROOT/modules/jdk25-cosmo.zip"

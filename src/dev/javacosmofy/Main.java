@@ -13,14 +13,18 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
 import java.util.LinkedHashSet;
 import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -28,7 +32,11 @@ import java.util.zip.ZipFile;
 /** A small ZIP32 APE bundler. The resulting program needs no host zip tool. */
 public final class Main {
   private static final String META = ".__javacosmofy__/base.properties";
+  private static final String RUNTIME_MANIFEST = ".java-ape/runtime-manifest.json";
   private static final String VERSION = "0.1.0";
+  private static final Pattern MANIFEST_FORMAT = Pattern.compile("\\\"format\\\"\\s*:\\s*1");
+  private static final Pattern RUNTIME_SHA256 = Pattern.compile(
+      "\\\"runtime\\\"\\s*:\\s*\\{[^{}]*\\\"sha256\\\"\\s*:\\s*\\\"([0-9a-f]{64})\\\"[^{}]*}");
 
   public static void main(String[] argv) {
     try {
@@ -213,14 +221,14 @@ public final class Main {
       startup = "-cp\n/zip/app/classes\n" + opt.mainClass() + "\n...\n";
     }
 
-    Map<String, byte[]> modules = opt.modules().isEmpty() ? Map.of() : selectModules(runtime, opt);
+    Map<String, byte[]> modules = opt.modules().isEmpty() ? Map.of() : selectModules(runtime, base, opt);
 
     create(runtime, opt.output(), base, app, modules, startup);
 
     System.out.printf("Bundled %d application file(s), %d module file(s): %s (%d bytes)%n", app.size(), modules.size(), opt.output(), Files.size(opt.output()));
   }
 
-  private static Map<String, byte[]> selectModules(Path runtime, Options opt) throws IOException {
+  private static Map<String, byte[]> selectModules(Path runtime, Snapshot base, Options opt) throws IOException {
     Path repository = opt.moduleRepository() == null ? defaultRepository() : opt.moduleRepository();
 
     if (!Files.isRegularFile(repository)) {
@@ -228,12 +236,10 @@ public final class Main {
           "missing module repository: " + repository + " (pass --module-repository FILE)");
     }
 
-    Properties base = properties(runtime, ".__javacosmofy__/runtime.properties");
-    Properties profile = properties(repository, ".__javacosmofy__/module-repository.properties");
+    String expectedRuntimeHash = repositoryRuntimeHash(repository);
+    String actualRuntimeHash = sha256(runtime, base.length());
 
-    if (!"1".equals(base.getProperty("format")) || !"1".equals(profile.getProperty("format"))
-        || !base.getProperty("source_sha256", "").equals(profile.getProperty("source_sha256"))
-        || !base.getProperty("patch_sha256", "").equals(profile.getProperty("patch_sha256"))) {
+    if (!actualRuntimeHash.equals(expectedRuntimeHash)) {
       throw new IllegalArgumentException("module repository does not match this java.com runtime");
     }
 
@@ -298,6 +304,10 @@ public final class Main {
           continue;
         }
 
+        if (isModuleBuildMetadata(name, slash)) {
+          continue;
+        }
+
         try (InputStream in = zip.getInputStream(entry)) {
           result.put(name, in.readAllBytes());
         }
@@ -305,6 +315,10 @@ public final class Main {
 
       return result;
     }
+  }
+
+  private static boolean isModuleBuildMetadata(String name, int slash) {
+    return name.startsWith("_the.", slash + 1);
   }
 
   private static Path defaultRepository() throws IOException {
@@ -324,20 +338,58 @@ public final class Main {
     throw new IllegalArgumentException("cannot locate module repository; pass --module-repository FILE");
   }
 
-  private static Properties properties(Path zip, String name) throws IOException {
-    try (ZipFile file = new ZipFile(zip.toFile())) {
-      ZipEntry entry = file.getEntry(name);
+  private static String repositoryRuntimeHash(Path repository) throws IOException {
+    try (ZipFile zip = new ZipFile(repository.toFile())) {
+      ZipEntry entry = zip.getEntry(RUNTIME_MANIFEST);
 
-      if (entry == null) {
-        throw new IOException("missing " + name + " in " + zip);
+      if (entry == null || entry.getSize() > 4096) {
+        throw new IOException("missing or invalid " + RUNTIME_MANIFEST + " in " + repository);
       }
 
-      Properties result = new Properties();
-      try (InputStream in = file.getInputStream(entry)) {
-        result.load(in);
+      String manifest;
+      try (InputStream in = zip.getInputStream(entry)) {
+        manifest = new String(in.readAllBytes(), StandardCharsets.UTF_8);
       }
-      return result;
+
+      if (!MANIFEST_FORMAT.matcher(manifest).find()) {
+        throw new IOException("unsupported runtime manifest format in " + repository);
+      }
+
+      Matcher matcher = RUNTIME_SHA256.matcher(manifest);
+      if (!matcher.find()) {
+        throw new IOException("runtime manifest has no SHA-256 in " + repository);
+      }
+
+      return matcher.group(1);
     }
+  }
+
+  private static String sha256(Path file, long length) throws IOException {
+    MessageDigest digest;
+    try {
+      digest = MessageDigest.getInstance("SHA-256");
+    } catch (NoSuchAlgorithmException error) {
+      throw new AssertionError(error);
+    }
+
+    byte[] buffer = new byte[64 * 1024];
+    long remaining = length;
+
+    try (InputStream in = Files.newInputStream(file)) {
+      while (remaining > 0) {
+        int request = (int)Math.min(buffer.length, remaining);
+        int count = in.read(buffer, 0, request);
+
+        if (count < 0) {
+          throw new IOException("runtime ended before its expected base length");
+        }
+
+        digest.update(buffer, 0, count);
+        remaining -= count;
+      }
+    }
+
+    return HexFormat.of().formatHex(digest.digest());
   }
 
   private static Set<String> moduleNames(Path zip) throws IOException {
@@ -684,10 +736,20 @@ public final class Main {
   }
 
   private static void copy(FileChannel in, FileChannel out, long length) throws IOException {
+    ByteBuffer buffer = ByteBuffer.allocate(64 * 1024);
+
     for (long copied = 0; copied < length;) {
-      long count = in.transferTo(copied, length - copied, out);
+      buffer.clear();
+      buffer.limit((int)Math.min(buffer.capacity(), length - copied));
+
+      int count = in.read(buffer, copied);
       if (count <= 0) {
         throw new IOException("short read while bundling");
+      }
+
+      buffer.flip();
+      while (buffer.hasRemaining()) {
+        out.write(buffer);
       }
 
       copied += count;

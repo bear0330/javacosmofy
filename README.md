@@ -8,8 +8,9 @@ host `zip`, or Java compiler is needed after the initial bootstrap.
 
 Download `java.com` and, if needed, `java-modules.zip` from the
 [java-ape releases](https://github.com/bear0330/java-ape/releases). Keep both
-assets from the same release: javacosmofy verifies their embedded build
-fingerprints before adding optional modules.
+assets from the same release: the module repository declares the SHA-256 of
+its matching runtime, which javacosmofy verifies before adding optional
+modules.
 
 Bootstrap javacosmofy with `java.com` and any local JDK that provides `javac`:
 
